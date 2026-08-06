@@ -59,7 +59,9 @@ jobs:
 
       - name: Pack tarball
         if: steps.skip.outputs.skip != 'true'
-        run: npm pack --filename opencodex-dev.tgz
+        run: |
+          npm pack --pack-destination .
+          mv "$(ls *.tgz | head -n1)" opencodex-dev.tgz
 
       - name: Compute release tag
         if: steps.skip.outputs.skip != 'true'
