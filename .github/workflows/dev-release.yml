@@ -41,6 +41,10 @@ jobs:
               core.setOutput("skip", "true");
             }
 
+      - name: Apply Windows sync ownership patch
+        if: steps.skip.outputs.skip != 'true'
+        run: node patch-windows-sync.mjs
+
       - name: Install Bun
         if: steps.skip.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v2
