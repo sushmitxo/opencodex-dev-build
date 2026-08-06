@@ -59,7 +59,7 @@ jobs:
 
       - name: Pack tarball
         if: steps.skip.outputs.skip != 'true'
-        run: bun pack --filename opencodex-dev.tgz
+        run: npm pack --filename opencodex-dev.tgz
 
       - name: Compute release tag
         if: steps.skip.outputs.skip != 'true'
