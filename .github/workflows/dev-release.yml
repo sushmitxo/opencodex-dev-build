@@ -1,0 +1,86 @@
+name: Build dev release
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # every day 04:00 UTC
+  workflow_dispatch:       # manual trigger from the Actions tab
+
+permissions:
+  contents: write          # needed to create releases
+
+env:
+  SOURCE_REPO: lidge-jun/opencodex
+  SOURCE_BRANCH: dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ env.SOURCE_BRANCH }}
+
+      - name: Record dev HEAD SHA
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Skip if we already built this exact commit (saves Action minutes)
+      - name: Skip if already released
+        id: skip
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha8 = "${{ steps.sha.outputs.sha }}".slice(0, 8);
+            const rels = await github.paginate(github.rest.repos.listReleases, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            if (rels.some(r => r.tag_name.includes(sha8))) {
+              core.setOutput("skip", "true");
+            }
+
+      - name: Install Bun
+        if: steps.skip.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        if: steps.skip.outputs.skip != 'true'
+        run: bun install
+
+      - name: Typecheck
+        if: steps.skip.outputs.skip != 'true'
+        run: bun run typecheck
+
+      - name: Build GUI + prepare package
+        if: steps.skip.outputs.skip != 'true'
+        run: bun run build:gui
+
+      - name: Pack tarball
+        if: steps.skip.outputs.skip != 'true'
+        run: bun pack --filename opencodex-dev.tgz
+
+      - name: Compute release tag
+        if: steps.skip.outputs.skip != 'true'
+        id: tag
+        run: |
+          SHA8=${{ steps.sha.outputs.sha }}
+          SHA8=${SHA8:0:8}
+          echo "release_tag=dev-$(date +%Y%m%d)-${SHA8}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        if: steps.skip.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "dev build ${{ steps.tag.outputs.release_tag }}"
+          body: |
+            Automated daily build of `${{ env.SOURCE_REPO }}` @ `${{ env.SOURCE_BRANCH }}`
+            commit: `${{ steps.sha.outputs.sha }}`
+
+            Install with:
+            ```
+            npm install -g --force https://github.com/${{ github.repository }}/releases/latest/download/opencodex-dev.tgz
+            ```
+          files: opencodex-dev.tgz
