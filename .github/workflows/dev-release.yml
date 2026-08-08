@@ -3,7 +3,13 @@ name: Build dev release
 on:
   schedule:
     - cron: "0 4 * * *"   # every day 04:00 UTC
-  workflow_dispatch:       # manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force a rebuild even if this dev commit is already released (to pick up newly added patches for the same commit)"
+        required: false
+        default: "false"
+        type: boolean
 
 permissions:
   contents: write          # needed to create releases
@@ -32,12 +38,13 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const force = "${{ inputs.force }}" === "true";
             const sha8 = "${{ steps.sha.outputs.sha }}".slice(0, 8);
             const rels = await github.paginate(github.rest.repos.listReleases, {
               owner: context.repo.owner,
               repo: context.repo.repo,
             });
-            if (rels.some(r => r.tag_name.includes(sha8))) {
+            if (!force && rels.some(r => r.tag_name.includes(sha8))) {
               core.setOutput("skip", "true");
             }
 
@@ -50,6 +57,16 @@ jobs:
             repos/${{ github.repository }}/contents/patch-windows-sync.mjs?ref=${{ github.sha }} \
             > patch-windows-sync.mjs
           node patch-windows-sync.mjs
+
+      - name: Apply DeepSeek reasoning placeholder patch
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -H "Accept: application/vnd.github.raw" \
+            repos/${{ github.repository }}/contents/patch-deepseek-reasoning.mjs?ref=${{ github.sha }} \
+            > patch-deepseek-reasoning.mjs
+          node patch-deepseek-reasoning.mjs
 
       - name: Install Bun
         if: steps.skip.outputs.skip != 'true'
@@ -76,10 +93,17 @@ jobs:
       - name: Compute release tag
         if: steps.skip.outputs.skip != 'true'
         id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           SHA8=${{ steps.sha.outputs.sha }}
           SHA8=${SHA8:0:8}
-          echo "release_tag=dev-$(date +%Y%m%d)-${SHA8}" >> "$GITHUB_OUTPUT"
+          DAY=$(date +%Y%m%d)
+          # Count existing releases built from this dev commit so a forced rebuild
+          # of the same commit gets a unique revision suffix (r1, r2, ...).
+          COUNT=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName --jq '[.[].tagName] | map(select(contains("'"$SHA8"'"))) | length' 2>/dev/null || echo 0)
+          REV=$((COUNT + 1))
+          echo "release_tag=dev-${DAY}-${SHA8}-r${REV}" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         if: steps.skip.outputs.skip != 'true'
