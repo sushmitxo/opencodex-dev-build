@@ -58,16 +58,6 @@ jobs:
             > patch-windows-sync.mjs
           node patch-windows-sync.mjs
 
-      - name: Apply DeepSeek reasoning placeholder patch
-        if: steps.skip.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api -H "Accept: application/vnd.github.raw" \
-            repos/${{ github.repository }}/contents/patch-deepseek-reasoning.mjs?ref=${{ github.sha }} \
-            > patch-deepseek-reasoning.mjs
-          node patch-deepseek-reasoning.mjs
-
       - name: Apply Baseten flash reasoning patch
         if: steps.skip.outputs.skip != 'true'
         env:
