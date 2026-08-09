@@ -68,6 +68,16 @@ jobs:
             > patch-deepseek-reasoning.mjs
           node patch-deepseek-reasoning.mjs
 
+      - name: Apply Baseten flash reasoning patch
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -H "Accept: application/vnd.github.raw" \
+            repos/${{ github.repository }}/contents/patch-baseten-flash-reasoning.mjs?ref=${{ github.sha }} \
+            > patch-baseten-flash-reasoning.mjs
+          node patch-baseten-flash-reasoning.mjs
+
       - name: Install Bun
         if: steps.skip.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v2
