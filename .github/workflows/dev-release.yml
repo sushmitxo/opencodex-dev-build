@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Force a rebuild even if this dev commit is already released (to pick up newly added patches for the same commit)"
+        description: "Force a rebuild even if this dev commit is already released (produces a new -rN revision tag)"
         required: false
         default: "false"
         type: boolean
@@ -47,16 +47,6 @@ jobs:
             if (!force && rels.some(r => r.tag_name.includes(sha8))) {
               core.setOutput("skip", "true");
             }
-
-      - name: Apply Windows sync ownership patch
-        if: steps.skip.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api -H "Accept: application/vnd.github.raw" \
-            repos/${{ github.repository }}/contents/patch-windows-sync.mjs?ref=${{ github.sha }} \
-            > patch-windows-sync.mjs
-          node patch-windows-sync.mjs
 
       - name: Install Bun
         if: steps.skip.outputs.skip != 'true'
